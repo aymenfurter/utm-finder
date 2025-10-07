@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UTM Finder - ChatGPT Link Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 UTM Finder</h1>
+            <p class="subtitle">Analyzing arXiv papers for ChatGPT UTM parameters</p>
+        </header>
+
+        <div class="controls">
+            <button id="analyzeBtn" class="btn-primary">Start Analysis</button>
+            <span id="status" class="status"></span>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Analyzing arXiv papers... This may take a few minutes.</p>
+        </div>
+
+        <div id="results" class="hidden">
+            <section class="stats-section">
+                <h2>📊 Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalPapers">0</div>
+                        <div class="stat-label">Papers with ChatGPT UTM</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalLinks">0</div>
+                        <div class="stat-label">Total ChatGPT Links Found</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Trends Over Time</h3>
+                    <canvas id="trendsChart"></canvas>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Papers by Year</h3>
+                    <canvas id="yearChart"></canvas>
+                </div>
+            </section>
+
+            <section class="papers-section">
+                <h2>📄 Papers Found</h2>
+                <div id="papersList"></div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const status = document.getElementById('status');
+        let trendsChart = null;
+        let yearChart = null;
+
+        analyzeBtn.addEventListener('click', async () => {
+            analyzeBtn.disabled = true;
+            loading.classList.remove('hidden');
+            results.classList.add('hidden');
+            status.textContent = 'Starting analysis...';
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    status.textContent = `Analysis complete! Found ${data.papers_found} papers.`;
+                    loadResults();
+                } else {
+                    status.textContent = `Error: ${data.error}`;
+                }
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+            } finally {
+                analyzeBtn.disabled = false;
+                loading.classList.add('hidden');
+            }
+        });
+
+        async function loadResults() {
+            const response = await fetch('/api/results');
+            const data = await response.json();
+
+            // Update stats
+            document.getElementById('totalPapers').textContent = data.stats.papers_with_chatgpt_utm || 0;
+            document.getElementById('totalLinks').textContent = data.stats.total_chatgpt_links || 0;
+
+            // Create charts
+            createTrendsChart(data.stats.by_month);
+            createYearChart(data.stats.by_year);
+
+            // Display papers
+            displayPapers(data.papers);
+
+            results.classList.remove('hidden');
+        }
+
+        function createTrendsChart(monthlyData) {
+            const ctx = document.getElementById('trendsChart');
+            
+            if (trendsChart) {
+                trendsChart.destroy();
+            }
+
+            const labels = Object.keys(monthlyData);
+            const values = Object.values(monthlyData);
+
+            trendsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Papers per Month',
+                        data: values,
+                        borderColor: '#4CAF50',
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: true
+                        },
+                        title: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createYearChart(yearlyData) {
+            const ctx = document.getElementById('yearChart');
+            
+            if (yearChart) {
+                yearChart.destroy();
+            }
+
+            const labels = Object.keys(yearlyData);
+            const values = Object.values(yearlyData);
+
+            yearChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Papers per Year',
+                        data: values,
+                        backgroundColor: '#2196F3',
+                        borderColor: '#1976D2',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function displayPapers(papers) {
+            const papersList = document.getElementById('papersList');
+            
+            if (!papers || papers.length === 0) {
+                papersList.innerHTML = '<p class="no-results">No papers found with ChatGPT UTM parameters.</p>';
+                return;
+            }
+
+            papersList.innerHTML = papers.map(paper => `
+                <div class="paper-card">
+                    <h3>${escapeHtml(paper.title)}</h3>
+                    <div class="paper-meta">
+                        <span class="paper-id">arXiv: ${escapeHtml(paper.id)}</span>
+                        <span class="paper-date">${new Date(paper.published).toLocaleDateString()}</span>
+                    </div>
+                    <p class="paper-authors"><strong>Authors:</strong> ${escapeHtml(paper.authors.join(', '))}</p>
+                    <div class="paper-links">
+                        <strong>ChatGPT Links Found (${paper.chatgpt_links.length}):</strong>
+                        <ul>
+                            ${paper.chatgpt_links.map(link => `<li><code>${escapeHtml(link)}</code></li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="paper-stats">
+                        <span>Total links in paper: ${paper.total_links}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Check if there are cached results on page load
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('/api/results');
+                const data = await response.json();
+                
+                if (data.papers && data.papers.length > 0) {
+                    status.textContent = `Last updated: ${new Date(data.last_updated).toLocaleString()}`;
+                    loadResults();
+                }
+            } catch (error) {
+                console.log('No cached results available');
+            }
+        });
+    </script>
+</body>
+</html>
