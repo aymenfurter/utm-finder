@@ -47,6 +47,26 @@ http://localhost:5000
 4. **Statistics**: Aggregates data by year and month to show trends
 5. **Visualization**: Displays results with interactive charts and detailed paper information
 
+## API Endpoints
+
+- `GET /` - Main web interface
+- `POST /api/analyze` - Trigger analysis of arXiv papers
+- `GET /api/results` - Get cached analysis results
+
+## Example Usage
+
+Run the example script to test the UTM detection:
+```bash
+python example.py
+```
+
+## Configuration
+
+The application analyzes papers from 2023 onwards by default. You can modify the following in `app.py`:
+- `max_results`: Number of papers to analyze (default: 100)
+- `start_date`: Starting date for analysis (default: 2023-01-01)
+- Search categories: Currently set to CS.AI, CS.CL, CS.LG
+
 ## Requirements
 
 - Python 3.8+
